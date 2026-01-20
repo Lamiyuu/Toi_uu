@@ -2,87 +2,30 @@ import sys
 import math
 import random
 import time
+from utils import load_and_preprocess, MAX_SLOTS
 
-# --- CẤU HÌNH ---
-SLOTS_PER_SESSION = 6
-SESSIONS_PER_DAY = 2
-DAYS = 5
-MAX_SLOTS = DAYS * SESSIONS_PER_DAY * SLOTS_PER_SESSION # 60 tiết
-TIME_LIMIT = 0.95 # Giới hạn thời gian chạy (giây)
+# --- CẤU HÌNH SA ---
+TIME_LIMIT = 0.95
+T_START = 5000.0
+ALPHA = 0.98
 
-# --- HÀM HỖ TRỢ ---
-def input_stream():
-    """Bộ đọc dữ liệu an toàn, xử lý cả trường hợp input bị ngắt dòng lung tung"""
-    try:
-        full_input = sys.stdin.read().split()
-    except Exception: return
-    if not full_input: return
-    
-    iterator = iter(full_input)
-    while True:
-        try:
-            yield int(next(iterator))
-        except StopIteration:
-            break
-
-def is_valid_session(start, duration):
-    """Kiểm tra môn học có bị vắt qua trưa/chiều không"""
-    end = start + duration - 1
-    if end > MAX_SLOTS: return False
-    return ((start - 1) // SLOTS_PER_SESSION) == ((end - 1) // SLOTS_PER_SESSION)
-
-def solve_sa_random_init():
+def solve_sa_random_init(input_content=None):
     start_time_prog = time.time()
-    reader = input_stream()
     
-    # 1. ĐỌC DỮ LIỆU
-    try:
-        T_val = next(reader)
-        N_val = next(reader)
-        M_val = next(reader)
-        T, N, M = int(T_val), int(N_val), int(M_val)
-        
-        class_courses = []
-        for _ in range(N):
-            curr = []
-            while True:
-                val = next(reader)
-                if val == 0: break
-                curr.append(val)
-            class_courses.append(curr)
-            
-        teacher_abilities = []
-        for _ in range(T):
-            curr = set()
-            while True:
-                val = next(reader)
-                if val == 0: break
-                curr.add(val)
-            teacher_abilities.append(curr)
-            
-        durations = []
-        for _ in range(M): durations.append(next(reader))
-        
-    except StopIteration: return
+    # 1. GỌI TIỀN XỬ LÝ
+    # Giả lập stdin nếu có input string (dùng cho benchmark runner)
+    if input_content:
+        from io import StringIO
+        sys.stdin = StringIO(input_content)
 
-    # 2. CHUẨN BỊ DATA
-    tasks = []
-    task_counter = 0
-    for c_idx, courses in enumerate(class_courses):
-        for m_id in courses:
-            # Lấy danh sách giáo viên dạy được môn này
-            eligible = [t for t in range(T) if m_id in teacher_abilities[t]]
-            tasks.append({
-                'id': task_counter,
-                'c': c_idx, 'm': m_id, 
-                'd': durations[m_id - 1], 'eligible': eligible
-            })
-            task_counter += 1
+    data = load_and_preprocess()
+    if data is None: return
 
-    # --- HEURISTIC SORT (GIỮ LẠI THEO YÊU CẦU) ---
-    # Sắp xếp để các môn khó (ít GV, dài) được ưu tiên chọn chỗ trước
-    tasks.sort(key=lambda x: (len(x['eligible']), -x['d'], x['c']))
-    
+    # Bung dữ liệu ra các biến
+    T, N, tasks = data['T'], data['N'], data['tasks']
+    # valid_starts chính là valid_starts_cache trong code cũ
+    valid_starts_cache = data['valid_starts'] 
+
     # --- KHỞI TẠO CẤU TRÚC DỮ LIỆU ---
     assigned = {} # Map: task_id -> (start_slot, teacher_index)
     
@@ -90,15 +33,10 @@ def solve_sa_random_init():
     class_grid = [[-1] * (MAX_SLOTS + 1) for _ in range(N)]
     teacher_grid = [[-1] * (MAX_SLOTS + 1) for _ in range(T)]
     
-    unassigned = [] # Danh sách các task chưa xếp được
+    unassigned = [] # Danh sách id các task chưa xếp được
 
-    # Cache các vị trí bắt đầu hợp lệ cho từng độ dài môn học
-    valid_starts_cache = {}
-    for d in range(1, 13):
-        valid_starts_cache[d] = [s for s in range(1, MAX_SLOTS - d + 2) if is_valid_session(s, d)]
-
-    # --- RANDOM CONSTRUCT (THAY THẾ GREEDY) ---
-    # Xếp lịch khởi tạo một cách ngẫu nhiên
+    # --- RANDOM CONSTRUCT ---
+    # Xếp lịch khởi tạo ngẫu nhiên nhưng sử dụng cache slot hợp lệ
     for task in tasks:
         tid, c, d = task['id'], task['c'], task['d']
         
@@ -111,20 +49,21 @@ def solve_sa_random_init():
         for t in candidates:
             if is_set: break
             
-            # 2. Xáo trộn danh sách slot hợp lệ (Random Fit)
+            # 2. Lấy slot từ Cache (Nhanh hơn tính thủ công)
             possible_slots = list(valid_starts_cache.get(d, []))
-            random.shuffle(possible_slots)
+            random.shuffle(possible_slots) # Random hóa vị trí
             
             for s in possible_slots:
-                # Vẫn phải check conflict để đảm bảo tính hợp lệ cơ bản
                 e = s + d - 1
+                
+                # Check conflict
                 ok = True
                 for k in range(s, e + 1):
                     if class_grid[c][k] != -1 or teacher_grid[t][k] != -1:
                         ok = False; break
                 
                 if ok:
-                    # Tìm được chỗ trống ngẫu nhiên -> Điền vào ngay
+                    # Assign
                     assigned[tid] = (s, t)
                     for k in range(s, e + 1):
                         class_grid[c][k] = tid
@@ -137,22 +76,20 @@ def solve_sa_random_init():
 
     # --- HÀM MỤC TIÊU ---
     def get_score(n_unassigned, sum_start):
-        # Ưu tiên số 1: Giảm số lượng chưa xếp (hệ số phạt cực lớn)
-        # Ưu tiên số 2: Xếp sớm (hệ số phạt nhỏ)
-        return n_unassigned * 1000000 + sum_start
+        # Ưu tiên 1: Giảm unassigned
+        # Ưu tiên 2: Giảm tổng thời gian bắt đầu (compact schedule)
+        return n_unassigned * 1_000_000 + sum_start
 
     current_score = get_score(len(unassigned), sum(v[0] for v in assigned.values()))
     best_assigned = assigned.copy()
     best_score = current_score
 
     # --- SIMULATED ANNEALING LOOP ---
-    # Nhiệt độ cao để phá vỡ cấu trúc ngẫu nhiên ban đầu
-    T_curr = 5000.0 
-    alpha = 0.98   
-
+    T_curr = T_START
+    
     while time.time() - start_time_prog < TIME_LIMIT:
         
-        # Chọn chế độ dựa trên tình trạng hiện tại
+        # Chọn chế độ: Nếu còn task chưa xếp thì ưu tiên chèn (INSERT), nếu hết thì tối ưu (OPTIMIZE)
         mode = "INSERT" if unassigned else "OPTIMIZE"
         
         move_type = None
@@ -164,18 +101,17 @@ def solve_sa_random_init():
         
         # --- TẠO NƯỚC ĐI (NEIGHBORHOOD MOVE) ---
         if mode == "INSERT":
-            # Cố gắng chèn task chưa xếp vào
+            # [Logic cũ giữ nguyên] Cố gắng chèn task chưa xếp vào
             u_tid = random.choice(unassigned)
             u_task = next(t for t in tasks if t['id'] == u_tid)
             uc, ud = u_task['c'], u_task['d']
             
             candidates_moves = []
-            # Thử ngẫu nhiên 5 giáo viên
             u_teachers = u_task['eligible']
             if len(u_teachers) > 5: u_teachers = random.sample(u_teachers, 5)
             
             for t in u_teachers:
-                # Quét các slot để tìm cơ hội chèn hoặc hoán đổi
+                # Dùng cache slot hợp lệ
                 for s in valid_starts_cache.get(ud, []):
                     e = s + ud - 1
                     blockers = set()
@@ -183,13 +119,13 @@ def solve_sa_random_init():
                     for k in range(s, e + 1):
                         if class_grid[uc][k] != -1: blockers.add(class_grid[uc][k])
                         if teacher_grid[t][k] != -1: blockers.add(teacher_grid[t][k])
-                        if len(blockers) > 1: # Chỉ swap nếu bị chắn bởi tối đa 1 task
+                        if len(blockers) > 1: 
                             possible = False; break
                     
                     if possible:
                         if len(blockers) == 0:
                             candidates_moves.append(('FREE', s, t, -1))
-                            break # Ưu tiên slot trống
+                            break # Ưu tiên slot trống tìm thấy ngay
                         elif len(blockers) == 1:
                             candidates_moves.append(('SWAP', s, t, list(blockers)[0]))
             
@@ -199,13 +135,13 @@ def solve_sa_random_init():
             move_type, new_s, new_t, victim_tid = move
             
             if move_type == 'FREE':
-                delta_score = -1000000 + new_s
+                delta_score = -1_000_000 + new_s
             elif move_type == 'SWAP':
                 v_start = assigned[victim_tid][0]
                 delta_score = new_s - v_start 
                 
         elif mode == "OPTIMIZE":
-            # Cố gắng di chuyển task đã xếp sang vị trí khác (Random Move)
+            # [Logic cũ giữ nguyên] Di chuyển task đã xếp
             u_tid = random.choice(list(assigned.keys()))
             u_task = next(t for t in tasks if t['id'] == u_tid)
             old_s, old_t = assigned[u_tid]
@@ -215,18 +151,15 @@ def solve_sa_random_init():
             if len(u_teachers) > 3: u_teachers = random.sample(u_teachers, 3)
             
             for t in u_teachers:
-                # Random hóa việc chọn slot mới để tăng tính ngẫu nhiên cho SA
                 slots = valid_starts_cache.get(u_task['d'], [])
                 try_slots = random.sample(slots, min(len(slots), 10)) 
                 
                 for s in try_slots:
                     if s == old_s and t == old_t: continue
                     
-                    # Check conflict
                     e = s + u_task['d'] - 1
                     conflict = False
                     for k in range(s, e + 1):
-                        # Chỉ coi là conflict nếu bị task KHÁC chiếm
                         if (class_grid[u_task['c']][k] != -1 and class_grid[u_task['c']][k] != u_tid) or \
                            (teacher_grid[t][k] != -1 and teacher_grid[t][k] != u_tid):
                             conflict = True; break
@@ -239,12 +172,11 @@ def solve_sa_random_init():
             delta_score = new_s - old_s
             move_type = 'MOVE'
 
-        # --- QUYẾT ĐỊNH CHẤP NHẬN (METROPOLIS) ---
+        # --- QUYẾT ĐỊNH CHẤP NHẬN (METROPOLIS CRITERION) ---
         accept = False
         if delta_score <= 0:
-            accept = True # Tốt hơn -> Lấy luôn
+            accept = True
         else:
-            # Tệ hơn -> Lấy với xác suất P = exp(-delta/T)
             if random.random() < math.exp(-delta_score / T_curr):
                 accept = True
         
@@ -296,21 +228,24 @@ def solve_sa_random_init():
                 best_assigned = assigned.copy()
 
         # Giảm nhiệt độ
-        T_curr *= alpha
-        # Reheat nếu nguội quá mà chưa hết giờ
-        if T_curr < 1.0: T_curr = 5000.0 
+        T_curr *= ALPHA
+        if T_curr < 1.0: T_curr = T_START 
 
-    # --- KẾT THÚC VÀ IN RA ---
+    # --- OUTPUT ---
     final_output = []
     for tid, (s, t) in best_assigned.items():
         task = next(tk for tk in tasks if tk['id'] == tid)
         # Cộng 1 cho đúng format đề bài (Index từ 1)
+        # Lưu ý: trong utils, c và t (eligible) là 0-based.
         final_output.append((task['c'] + 1, task['m'], s, t + 1))
     
-    print(len(final_output))
-    final_output.sort(key=lambda x: (x[0], x[1]))
-    for item in final_output:
-        print(f"{item[0]} {item[1]} {item[2]} {item[3]}")
+    if input_content is None:
+        print(len(final_output))
+        final_output.sort(key=lambda x: (x[0], x[1]))
+        for item in final_output:
+            print(f"{item[0]} {item[1]} {item[2]} {item[3]}")
+    
+    return len(final_output)
 
 if __name__ == "__main__":
     solve_sa_random_init()

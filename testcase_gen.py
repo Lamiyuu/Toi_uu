@@ -1,138 +1,178 @@
 import random
 import os
 
-def generate_hard_testcase(filename, T, N, M, density=0.6, scarcity=0.8):
+def generate_testcase(filename, T, N, M, density, scarcity, mode='normal'):
     """
-    Sinh test case khó với nhiều cực tiểu địa phương.
+    Sinh test case ép xung để đạt ngưỡng HARD của analyzer.py
     
     Args:
-        filename: Đường dẫn file output.
-        T: Số giáo viên.
-        N: Số lớp học.
-        M: Số môn học.
-        density (0.0 - 1.0): Độ "đặc" của lịch học. Càng cao, lớp càng phải học nhiều môn.
-        scarcity (0.0 - 1.0): Độ "hiếm" giáo viên. Càng cao, giáo viên càng ít đa năng (chuyên môn hóa hẹp).
+        density (0.0 - 1.0): 
+            - Đặt > 0.92 để ép ra HARD (Full Class Schedule).
+            - Đặt 0.78 - 0.85 để ra MEDIUM.
+        scarcity (0.0 - 1.0): 
+            - Đặt > 0.95 để ép ra HARD (Lack Teachers - Hầu hết môn chỉ có 1 GV).
+            - Đặt 0.6 - 0.8 để ra MEDIUM.
     """
     
-    # ---------------------------------------------------------
-    # BƯỚC 1: SINH THỜI LƯỢNG (DURATIONS) - GÂY KHÓ XẾP
-    # ---------------------------------------------------------
-    # Thay vì random đều, ta ưu tiên môn 3 và 4 tiết. 
-    # Lý do: Buổi học có 6 tiết. 
-    # - Môn 3 tiết: Cần đúng 1/2 buổi.
-    # - Môn 4 tiết: Cực khó chịu, vì dư 2 tiết chỉ nhét được môn ngắn.
-    weights = [0.1, 0.1, 0.4, 0.4] # Tỉ lệ cho 1, 2, 3, 4 tiết
-    duration_values = random.choices([1, 2, 3, 4], weights=weights, k=M)
-    durations = {m: d for m, d in zip(range(1, M+1), duration_values)}
+    MAX_SLOTS = 60
+    
+    # --- 1. SINH THỜI LƯỢNG (DURATIONS) ---
+    durations = []
+    for _ in range(M):
+        if mode == 'stress':
+            # Chế độ Stress: Tăng môn 3, 4 tiết để khó xếp slot
+            r = random.random()
+            if r < 0.05: d = 1
+            elif r < 0.25: d = 2
+            elif r < 0.55: d = 3
+            else: d = 4 
+        else:
+            r = random.random()
+            if r < 0.1: d = 1
+            elif r < 0.4: d = 2
+            elif r < 0.8: d = 3
+            else: d = 4
+        durations.append(d)
 
-    # ---------------------------------------------------------
-    # BƯỚC 2: SINH KỸ NĂNG GIÁO VIÊN (TEACHERS) - NÚT THẮT CỔ CHAI
-    # ---------------------------------------------------------
-    teacher_skills = [set() for _ in range(T)]
-    
-    # [QUAN TRỌNG] Đảm bảo tính khả thi: Mỗi môn phải có ít nhất 1 GV dạy
-    # Phân đều mỗi môn cho 1 GV ngẫu nhiên trước
-    all_subjects = list(range(1, M + 1))
-    random.shuffle(all_subjects)
-    
-    for m_id in all_subjects:
-        t_idx = random.randint(0, T - 1)
-        teacher_skills[t_idx].add(m_id)
-        
-    # Sau đó phân thêm kỹ năng dựa trên độ khan hiếm (scarcity)
-    # Scarcity cao -> GV biết ít môn -> Khó xếp
-    avg_skills_per_teacher = max(1, int(M * (1 - scarcity))) 
-    
-    for t_idx in range(T):
-        # Số môn GV này có thể dạy thêm (ngẫu nhiên quanh mức trung bình)
-        num_extra = random.randint(0, avg_skills_per_teacher)
-        potential_subjects = random.sample(range(1, M+1), min(num_extra, M))
-        teacher_skills[t_idx].update(potential_subjects)
-
-    # ---------------------------------------------------------
-    # BƯỚC 3: SINH NHU CẦU LỚP HỌC (CLASSES) - MẬT ĐỘ CAO
-    # ---------------------------------------------------------
-    class_requirements = []
-    
-    # Số môn trung bình mỗi lớp phải học
-    avg_subjects_per_class = int(M * density)
-    if avg_subjects_per_class < 1: avg_subjects_per_class = 1
+    # --- 2. SINH NHU CẦU LỚP HỌC (CLASS REQUIREMENTS) ---
+    class_courses = []
+    target_load = int(MAX_SLOTS * density) 
     
     for _ in range(N):
-        # Biến thiên số lượng môn học để không lớp nào giống lớp nào
-        num_subs = random.randint(avg_subjects_per_class - 2, avg_subjects_per_class + 2)
-        num_subs = max(1, min(num_subs, M)) # Clamp trong khoảng [1, M]
+        current_load = 0
+        courses = set()
+        attempts = 0
         
-        # Chọn môn học ngẫu nhiên
-        reqs = random.sample(range(1, M+1), num_subs)
-        class_requirements.append(reqs)
+        # Cố gắng nhồi môn đến khi đạt target density
+        # Tăng số attempts để đảm bảo đạt được độ đặc mong muốn
+        while current_load < target_load and attempts < 1000:
+            m_id = random.randint(1, M)
+            if m_id not in courses:
+                d = durations[m_id-1]
+                # Nếu density yêu cầu cao (>90%), cho phép nhồi gần full
+                if current_load + d <= MAX_SLOTS:
+                    courses.add(m_id)
+                    current_load += d
+            attempts += 1
+        class_courses.append(list(courses))
 
-    # ---------------------------------------------------------
-    # BƯỚC 4: GHI FILE THEO FORMAT ĐỀ BÀI
-    # ---------------------------------------------------------
-    with open(filename, 'w') as f:
-        # Header
+    # --- 3. SINH KỸ NĂNG GIÁO VIÊN ---
+    teacher_abilities = [set() for _ in range(T)]
+    
+    # Tính xác suất GV biết môn.
+    # Nếu scarcity cực cao (Hard), prob_know phải cực thấp
+    prob_know = 1.0 - scarcity
+    
+    # Nếu muốn Hard Scarcity (>50% task có 1 GV), prob_know phải gần như bằng 0
+    # để logic "lucky_teacher" bên dưới chịu trách nhiệm chính.
+    if scarcity > 0.9: 
+        prob_know = 0.01 
+    elif prob_know < 0.05: 
+        prob_know = 0.05
+    
+    for t in range(T):
+        for m in range(1, M + 1):
+            if random.random() < prob_know:
+                teacher_abilities[t].add(m)
+
+    # Đảm bảo môn nào cũng có người dạy
+    for m in range(1, M + 1):
+        # Kiểm tra xem môn này đã có ai dạy chưa
+        count = sum(1 for t in range(T) if m in teacher_abilities[t])
+        
+        # Nếu chưa có ai HOẶC (Scarcity cao VÀ số người dạy < 1), gán cho đúng 1 người
+        if count == 0:
+            lucky_teacher = random.randint(0, T - 1)
+            teacher_abilities[lucky_teacher].add(m)
+
+    # Đảm bảo ai cũng có việc (để tránh lãng phí T)
+    for t in range(T):
+        if not teacher_abilities[t]:
+            random_subject = random.randint(1, M)
+            teacher_abilities[t].add(random_subject)
+
+    # --- 4. GHI FILE ---
+    output_folder = "test_case" # Sửa lại tên folder cho khớp với analyzer của bạn
+    os.makedirs(output_folder, exist_ok=True)
+    full_path = os.path.join(output_folder, filename)
+    
+    with open(full_path, 'w') as f:
         f.write(f"{T} {N} {M}\n")
+        for courses in class_courses:
+            f.write(" ".join(map(str, courses)) + " 0\n")
+        for abilities in teacher_abilities:
+            f.write(" ".join(map(str, abilities)) + " 0\n")
+        f.write(" ".join(map(str, durations)) + "\n")
         
-        # Danh sách môn lớp cần học
-        for reqs in class_requirements:
-            line = " ".join(map(str, reqs)) + " 0\n"
-            f.write(line)
-            
-        # Danh sách môn GV có thể dạy
-        for skills in teacher_skills:
-            if not skills: # Phòng hờ (dù logic trên đã chặn)
-                f.write("0\n")
-            else:
-                line = " ".join(map(str, skills)) + " 0\n"
-                f.write(line)
-                
-        # Thời lượng môn học
-        d_str = [str(durations[m]) for m in range(1, M+1)]
-        f.write(" ".join(d_str))
-        
-    print(f"✅ Đã tạo: {filename} | T={T}, N={N}, M={M}")
+    print(f"Gen: {filename:<25} | Density={density} | Scarcity={scarcity}")
 
 # =========================================================
-# CHẠY SINH DỮ LIỆU
+# CẤU HÌNH ĐỂ ĐẠT MEDIUM / HARD TRÊN ANALYZER
 # =========================================================
 
-if not os.path.exists("datasets"):
-    os.makedirs("datasets")
+if __name__ == "__main__":
+    print("-" * 60)
+    print("SINH 6 TEST CASE (1 MEDIUM - 1 HARD CHO MỖI CẶP)")
+    print("-" * 60)
 
-print("--- BẮT ĐẦU SINH TEST CASE ---")
+    # --- CẶP 1: TEST NHỎ (T=5, 10) ---
+    
+    # 1.1. Medium (T=5)
+    # Density 0.8 -> Class Load ~80% (>75% -> MEDIUM)
+    generate_testcase(
+        "01_small_medium.txt",
+        T=5, N=10, M=15,
+        density=0.8, scarcity=0.3, mode='normal'
+    )
 
-# 1. Test nhỏ: Kiểm tra tính đúng đắn (Sanity Check)
-generate_hard_testcase(
-    "datasets/test_small.txt", 
-    T=5, N=5, M=10, 
-    density=0.4, scarcity=0.5
-)
+    # 1.2. Hard (T=10)
+    # Density 0.96 -> Class Load > 90% (-> HARD: Full Class Schedule)
+    generate_testcase(
+        "02_small_hard.txt",
+        T=10, N=20, M=25,
+        density=0.96, scarcity=0.4, mode='stress'
+    )
 
-# 2. Test vừa: Mô phỏng bài toán thực tế (Standard)
-# density=0.3: Mỗi lớp học khoảng 30% tổng số môn (khoảng 9-10 môn)
-# scarcity=0.8: Giáo viên khá chuyên biệt (chỉ dạy được ít môn)
-generate_hard_testcase(
-    "datasets/test_medium.txt", 
-    T=15, N=30, M=30, 
-    density=0.3, scarcity=0.8
-)
+    print("-" * 30)
 
-# 3. Test LỚN & KHÓ (Stress Test) - Dùng để đánh giá hiệu năng & tối ưu
-# 50 GV, 100 Lớp, 50 Môn.
-# Nhiều môn 3,4 tiết. GV rất ít. Lớp học nhiều.
-generate_hard_testcase(
-    "datasets/test_large_hard.txt", 
-    T=50, N=100, M=50, 
-    density=0.25, scarcity=0.85 
-)
+    # --- CẶP 2: TEST VỪA (T=20, 25) ---
+    
+    # 2.1. Medium (T=20)
+    # Scarcity 0.4 -> ~30-40% task hiếm (>20% -> MEDIUM)
+    # Density 0.75 -> Mấp mé Medium
+    generate_testcase(
+        "03_medium_medium.txt",
+        T=20, N=40, M=40,
+        density=0.75, scarcity=0.4, mode='normal'
+    )
 
-print("\nĐã xong! Kiểm tra thư mục 'datasets/'.")
+    # 2.2. Hard (T=25)
+    # Scarcity 0.98 -> Ép hầu hết môn chỉ có 1 GV (>50% -> HARD: Lack Teachers)
+    generate_testcase(
+        "04_medium_hard.txt",
+        T=25, N=50, M=50,
+        density=0.6, scarcity=0.98, mode='normal'
+    )
 
-generate_hard_testcase(
-    "datasets/test_supper_large_hard.txt", 
-    T=100, N=400, M=60, 
-    density=0.25, scarcity=0.85 
-)
+    print("-" * 30)
 
-print("\nĐã xong! Kiểm tra thư mục 'datasets/'.")
+    # --- CẶP 3: TEST LỚN (T=50) ---
+    
+    # 3.1. Medium (T=50)
+    # Density 0.82 -> Class Load > 75% (-> MEDIUM)
+    generate_testcase(
+        "05_large_medium.txt",
+        T=50, N=100, M=80,
+        density=0.82, scarcity=0.2, mode='normal'
+    )
+
+    # 3.2. Hard (T=50) - Nightmare
+    # Density 0.95 (HARD) VÀ Scarcity 0.95 (HARD) -> Double HARD
+    generate_testcase(
+        "06_large_hard.txt",
+        T=50, N=120, M=100,
+        density=0.95, scarcity=0.95, mode='stress'
+    )
+
+    print("-" * 60)
+    print("Xong! Hãy chạy lại 'analyzer_folder.py' để kiểm tra Rank.")
