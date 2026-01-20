@@ -6,7 +6,7 @@ from collections import defaultdict
 # ============================================
 # CONFIGURATION
 # ============================================
-TIME_LIMIT = 0.95
+DEFAULT_TIME_LIMIT = 0.95
 MAX_SLOTS = 60  # 5 days x 2 sessions x 6 periods
 BASE_TABU_TENURE = 8
 MIN_TENURE = 3
@@ -45,9 +45,9 @@ class MultiLevelMemory:
     def add_elite(self, score, assigned):
         sol_copy = assigned.copy()
         self.elite_solutions.append((score, sol_copy))
-        self.elite_solutions.sort(key=lambda x: x[0])
+        self.elite_solutions.sort(key=lambda x: x[0]) # Sort theo score (duration âm -> càng nhỏ càng tốt)
         if len(self.elite_solutions) > ELITE_POOL_SIZE:
-            self.elite_solutions.pop()
+            self.elite_solutions.pop() # Bỏ cái tệ nhất (lớn nhất)
     
     def get_random_elite(self):
         if not self.elite_solutions:
@@ -59,25 +59,31 @@ class MultiLevelMemory:
 # ============================================
 def load_and_preprocess():
     try:
-        line = input().strip().split()
+        # Đọc line đầu tiên kiểm tra xem có dữ liệu không
+        first_line = sys.stdin.readline()
+        if not first_line: return None
+        
+        line = first_line.strip().split()
+        if not line: return None
+        
         T, N, M = int(line[0]), int(line[1]), int(line[2])
         
         # Đọc danh sách môn của từng lớp
         class_subjects = []
         for i in range(N):
-            subjects = list(map(int, input().split()))
-            subjects = [s for s in subjects if s != 0]
+            line_data = list(map(int, sys.stdin.readline().split()))
+            subjects = [s for s in line_data if s != 0]
             class_subjects.append(subjects)
         
         # Đọc danh sách môn giáo viên có thể dạy
         teacher_subjects = []
         for t in range(T):
-            subjects = list(map(int, input().split()))
-            subjects = [s for s in subjects if s != 0]
+            line_data = list(map(int, sys.stdin.readline().split()))
+            subjects = [s for s in line_data if s != 0]
             teacher_subjects.append(subjects)
         
         # Đọc số tiết của từng môn
-        durations_line = list(map(int, input().split()))
+        durations_line = list(map(int, sys.stdin.readline().split()))
         durations = [0] + durations_line  # Index 1-based
         
         # Tạo tasks (lớp-môn)
@@ -116,7 +122,8 @@ def load_and_preprocess():
             'tasks': tasks,
             'valid_starts': valid_starts
         }
-    except:
+    except Exception as e:
+        # print(f"Error parsing input: {e}")
         return None
 
 # ============================================
@@ -137,15 +144,11 @@ def is_move_tabu(move, current_score, best_score, memory):
     tid, ns, nt = move['tid'], move['ns'], move['nt']
     key = make_tabu_key(tid, ns, nt)
     
-    # Aspiration
+    # Aspiration (Nếu move giúp đạt kỷ lục mới -> Phá Tabu)
     if current_score + move['delta'] < best_score:
         return False
-    if move['delta'] < -100000:
-        return False
-    if memory.move_frequency[key] == 0:
-        return False
-    
-    # Check tabu
+        
+    # Nếu tabu chưa hết hạn
     if key in memory.tabu_list and memory.tabu_list[key] > memory.iteration:
         return True
     
@@ -187,7 +190,7 @@ def perturb_solution(assigned, tasks, class_grid, teacher_grid, valid_starts, N,
             teacher_grid[old_t][k] = -1
         del assigned[tid]
     
-    # Re-insert
+    # Re-insert (Random Greedy)
     for tid in to_perturb:
         task = next(t for t in tasks if t['id'] == tid)
         placed = False
@@ -219,15 +222,22 @@ def perturb_solution(assigned, tasks, class_grid, teacher_grid, valid_starts, N,
 # ============================================
 # MAIN SOLVER
 # ============================================
-def solve(input_content=None):
+def solve(input_content=None, time_limit=None):
+    """
+    Hàm giải Tabu Search có hỗ trợ time_limit.
+    """
     start_time_prog = time.time()
+    
+    # XÁC ĐỊNH LIMIT
+    limit = time_limit if time_limit is not None else DEFAULT_TIME_LIMIT
+
     if input_content:
         from io import StringIO
         sys.stdin = StringIO(input_content)
 
     data = load_and_preprocess()
     if data is None:
-        return
+        return 0
 
     T, N = data['T'], data['N']
     tasks = data['tasks']
@@ -241,6 +251,7 @@ def solve(input_content=None):
     teacher_grid = [[-1] * (MAX_SLOTS + 1) for _ in range(T)]
     unassigned = []
     
+    # Sort tasks khó xếp lên trước
     tasks.sort(key=lambda x: (len(x['eligible']), -x['d']))
     
     for task in tasks:
@@ -265,23 +276,24 @@ def solve(input_content=None):
         if not placed:
             unassigned.append(tid)
 
-    #current_score = len(unassigned) * 1_000_000 + sum(v[0] for v in assigned.values())
+    # Score: Negative Total Duration (Maximize duration -> Minimize negative)
+    # Vì bài toán yêu cầu max số lớp, nên việc xếp được nhiều lớp sẽ làm tổng duration tăng -> negative giảm -> tốt hơn.
     current_total_duration = sum(tasks[t_id]['d'] for t_id in assigned)
     current_score = -current_total_duration
     best_score = current_score
     best_assigned = assigned.copy()
     memory.add_elite(best_score, assigned)
 
-    # === TABU SEARCH ===
-    while time.time() - start_time_prog < TIME_LIMIT:
+    # === TABU SEARCH LOOP ===
+    while time.time() - start_time_prog < limit:
         memory.iteration += 1
         
-        # RESTART
+        # 1. RESTART STRATEGY
         if memory.need_restart():
             elite = memory.get_random_elite()
             if elite:
                 assigned = elite.copy()
-                # Rebuild grids
+                # Rebuild grids from scratch
                 class_grid = [[-1] * (MAX_SLOTS + 1) for _ in range(N)]
                 teacher_grid = [[-1] * (MAX_SLOTS + 1) for _ in range(T)]
                 for tid, (s, t) in assigned.items():
@@ -289,27 +301,30 @@ def solve(input_content=None):
                     for k in range(s, s + task['d']):
                         class_grid[task['c']][k] = tid
                         teacher_grid[t][k] = tid
+                
                 unassigned = [t['id'] for t in tasks if t['id'] not in assigned]
-                #current_score = len(unassigned) * 1_000_000 + sum(v[0] for v in assigned.values())
                 current_score = -sum(tasks[tid]['d'] for tid in assigned)
+            
             memory.stagnation_count = 0
             memory.tabu_list.clear()
             continue
         
-        # DIVERSIFY
+        # 2. DIVERSIFICATION STRATEGY
         if memory.is_stagnating() and memory.iteration % 20 == 0:
             assigned = perturb_solution(assigned.copy(), tasks, class_grid, teacher_grid,
-                                       valid_starts, N, T, strength=0.15)
+                                        valid_starts, N, T, strength=0.15)
             unassigned = [t['id'] for t in tasks if t['id'] not in assigned]
-            #current_score = len(unassigned) * 1_000_000 + sum(v[0] for v in assigned.values())
             current_score = -sum(tasks[tid]['d'] for tid in assigned)
 
         tenure = adaptive_tenure(memory)
+        
+        # Chuyển đổi chế độ tìm kiếm
         mode = "INSERT" if unassigned else "OPTIMIZE"
         candidate_moves = []
         
         # === GENERATE NEIGHBORS ===
         if mode == "INSERT":
+            # Cố gắng chèn các task chưa xếp được
             if unassigned:
                 u_tid = random.choice(unassigned)
                 u_task = next(t for t in tasks if t['id'] == u_tid)
@@ -325,26 +340,27 @@ def solve(input_content=None):
                         victims = set()
                         
                         possible = True
+                        # Kiểm tra va chạm để tìm nạn nhân (Kick move)
                         for k in range(s, e + 1):
                             c_occ = class_grid[u_task['c']][k]
                             t_occ = teacher_grid[t][k]
                             if c_occ != -1: victims.add(c_occ)
                             if t_occ != -1: victims.add(t_occ)
-                            if len(victims) > 1:
+                            if len(victims) > 1: # Chỉ chấp nhận kick tối đa 1 nạn nhân (để đơn giản)
                                 possible = False
                                 break
                         
                         if not possible: continue
                         
+                        # Nếu không va chạm ai -> INSERT FREE
                         if len(victims) == 0:
                             candidate_moves.append({
                                 'type': 'INSERT_FREE',
                                 'tid': u_tid, 'ns': s, 'nt': t,
-                                #'delta': -1_000_000 + s
-                                'delta': -u_task['d']
+                                'delta': -u_task['d'] # Giảm score (tốt hơn)
                             })
         
-        else:  # OPTIMIZE
+        else:  # OPTIMIZE MODE (Di chuyển task đã xếp để tìm cấu hình tốt hơn hoặc thoát kẹt)
             if assigned:
                 tid = random.choice(list(assigned.keys()))
                 curr_task = next(t for t in tasks if t['id'] == tid)
@@ -367,8 +383,7 @@ def solve(input_content=None):
                             candidate_moves.append({
                                 'type': 'MOVE',
                                 'tid': tid, 'ns': s, 'nt': t,
-                                #'delta': s - old_s
-                                'delta': 0
+                                'delta': 0 # Không đổi duration, nhưng đổi vị trí để tránh tabu
                             })
 
         # === SELECT BEST MOVE ===
@@ -406,10 +421,12 @@ def solve(input_content=None):
                 task = next(t for t in tasks if t['id'] == tid)
                 old_s, old_t = assigned[tid]
                 
+                # Clear old pos
                 for k in range(old_s, old_s + task['d']):
                     class_grid[task['c']][k] = -1
                     teacher_grid[old_t][k] = -1
                 
+                # Set new pos
                 assigned[tid] = (ns, nt)
                 for k in range(ns, ns + task['d']):
                     class_grid[task['c']][k] = tid
@@ -418,7 +435,7 @@ def solve(input_content=None):
                 old_key = make_tabu_key(tid, old_s, old_t)
                 memory.tabu_list[old_key] = memory.iteration + tenure
             
-            # Update frequency
+            # Update Statistics
             new_key = make_tabu_key(m['tid'], m['ns'], m['nt'])
             memory.move_frequency[new_key] += 1
             slot_bucket = m['ns'] // 30
@@ -437,7 +454,7 @@ def solve(input_content=None):
                 memory.stagnation_count += 1
                 memory.consecutive_improvements = 0
         
-        # Cleanup
+        # Cleanup Tabu List
         if memory.iteration % 100 == 0:
             cutoff = memory.iteration - 30
             memory.tabu_list = {k: v for k, v in memory.tabu_list.items() if v > cutoff}
@@ -454,8 +471,7 @@ def solve(input_content=None):
         for item in final_output:
             print(f"{item[0]} {item[1]} {item[2]} {item[3]}")
     
-    return best_score
-
+    return len(final_output)
 
 if __name__ == "__main__":
     solve()
