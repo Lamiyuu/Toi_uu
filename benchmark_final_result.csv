@@ -1,7 +1,9 @@
-Dataset,Time Limit,Greedy Constructive,Randomized Greedy,Local Search,Regret-Based,Simulated Annealing,Genetic Algorithm
-input_small.txt,1000ms,75,75,75,75,75,75
-input_small.txt,2000ms,75,75,75,75,75,75
-input_medium.txt,1000ms,372,369.8 (0.7),374,374,374,335.8 (4.7)
-input_medium.txt,2000ms,372,369.4 (0.8),374,374,374,336.4 (4.8)
-input_large.txt,1000ms,1389,1317.4 (2.3),1412,1400,1369.8 (2.0),990.2 (6.2)
-input_large.txt,2000ms,1389,1318.0 (2.1),1412,1400,1376.2 (3.8),999.6 (9.2)
+Dataset,Mode,Greedy Constructive,Randomized Greedy,Local Search,Regret-Based,Simulated Annealing,Genetic Algorithm
+test_small.txt,Limit 1 Min,18,18,18,18,18,18
+test_small.txt,No Limit,18,18,18,18,18,18
+test_medium.txt,Limit 1 Min,215,223.3 (0.5),221,223,230.3 (0.5),191.7 (0.5)
+test_medium.txt,No Limit,215,223.3 (0.5),221,223,231.3 (0.5),191.7 (2.9)
+test_large_hard.txt,Limit 1 Min,739,746,741,749,823.3 (2.5),546.7 (9.0)
+test_large_hard.txt,No Limit,739,744.7 (0.5),740,749,762.7 (4.9),544.7 (11.3)
+test_supper_large_hard.txt,Limit 1 Min,2162,1965.7 (5.4),2176,1967,2325.0 (4.5),1438.7 (21.0)
+test_supper_large_hard.txt,No Limit,2162,1958.3 (7.7),2167,1967,2132.0 (13.4),1432.3 (2.6)

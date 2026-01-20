@@ -17,18 +17,22 @@ ALGORITHMS = {
     "ga_test": "Genetic Algorithm"
 }
 
-# Danh sách file dữ liệu test
+# --- CẬP NHẬT DANH SÁCH FILE TEST TẠI ĐÂY ---
 TEST_FILES = [
-    "data/input_small.txt",
-    "data/input_medium.txt", 
-    "data/input_large.txt"
+    "datasets/test_small.txt",
+    "datasets/test_medium.txt", 
+    "datasets/test_large_hard.txt",
+    "datasets/test_supper_large_hard.txt"  # ✅ Đã thêm file mới (Lưu ý: Để file này vào thư mục data)
 ]
 
-# Các mốc thời gian giới hạn cần test (Giây)
-TIME_CONFIGS = [1.0, 2.0] 
+# Cấu hình các chế độ test
+TEST_MODES = [
+    {"label": "Limit 1 Min", "time_limit": 60.0},  # Giới hạn 60 giây
+    {"label": "No Limit",    "time_limit": None}    # Chạy tự do (tối đa hiệu năng)
+]
 
 # Số lần chạy lại mỗi thuật toán
-NUM_RUNS = 5 
+NUM_RUNS = 3 
 
 # --- 2. HÀM HỖ TRỢ ---
 
@@ -53,31 +57,45 @@ def load_solver(module_name):
         return None
 
 def call_solver_safe(func, input_content, limit):
-    """Gọi hàm solve an toàn, kiểm tra xem nó có nhận time_limit không"""
+    """
+    Gọi hàm solve an toàn.
+    - Nếu limit có giá trị: cố gắng truyền time_limit.
+    - Nếu limit là None: gọi hàm không tham số time_limit.
+    """
     try:
         sig = inspect.signature(func)
-        if 'time_limit' in sig.parameters:
+        
+        # Trường hợp 1: Có giới hạn thời gian và hàm chấp nhận tham số đó
+        if limit is not None and 'time_limit' in sig.parameters:
             return func(input_content, time_limit=limit)
+        
+        # Trường hợp 2: Chế độ không giới hạn (None) HOẶC hàm không hỗ trợ time_limit
         else:
-            # Nếu hàm không có tham số time_limit (như Greedy thuần), gọi bình thường
             return func(input_content)
+            
     except Exception as e:
-        # print(f"Lỗi runtime: {e}") 
         return 0
 
 # --- 3. CHƯƠNG TRÌNH CHÍNH ---
 
 def run_benchmark():
     # Kiểm tra thư mục data
-    valid_data_files = [f for f in TEST_FILES if os.path.exists(f)]
+    valid_data_files = []
+    print(f"{'='*70}")
+    print("📂 KIỂM TRA DỮ LIỆU INPUT...")
+    for f in TEST_FILES:
+        if os.path.exists(f):
+            valid_data_files.append(f)
+        else:
+            print(f"⚠️  Không tìm thấy file: {f} (Vui lòng kiểm tra đường dẫn)")
+            
     if not valid_data_files:
-        print("❌ LỖI: Không tìm thấy file dữ liệu nào trong thư mục 'data/'.")
+        print("❌ LỖI: Không tìm thấy file dữ liệu nào hợp lệ.")
         return
 
     # Nạp các thuật toán
     solvers = {}
-    print(f"{'='*70}")
-    print(f"📦 ĐANG NẠP CÁC THUẬT TOÁN...")
+    print(f"\n📦 ĐANG NẠP CÁC THUẬT TOÁN...")
     for filename, display_name in ALGORITHMS.items():
         solver_func = load_solver(filename)
         if solver_func:
@@ -93,25 +111,32 @@ def run_benchmark():
 
     results = []
     
-    print(f"🚀 BẮT ĐẦU CHẠY BENCHMARK ({NUM_RUNS} lần x {len(TIME_CONFIGS)} cấu hình)...")
+    print(f"🚀 BẮT ĐẦU CHẠY BENCHMARK...")
+    print(f"👉 Chế độ: {[mode['label'] for mode in TEST_MODES]}")
     
     for filepath in valid_data_files:
         filename = os.path.basename(filepath)
         print(f"\n📂 Dataset: {filename}")
         
         # Đọc nội dung file input
-        with open(filepath, 'r') as f:
-            input_content = f.read()
+        try:
+            with open(filepath, 'r') as f:
+                input_content = f.read()
+        except Exception as e:
+            print(f"❌ Lỗi đọc file {filename}: {e}")
+            continue
             
-        # Vòng lặp qua các mốc thời gian (1s, 2s)
-        for t_limit in TIME_CONFIGS:
-            t_label = f"{int(t_limit * 1000)}ms"
-            print(f"   ⏱️  Time Limit: {t_label}")
+        # Vòng lặp qua các chế độ test (1 phút vs No Limit)
+        for mode in TEST_MODES:
+            t_label = mode["label"]
+            t_limit = mode["time_limit"]
+            
+            print(f"   ⏱️  Mode: {t_label}")
             print("-" * 70)
             
             row = {
                 "Dataset": filename,
-                "Time Limit": t_label
+                "Mode": t_label
             }
             
             for name, solve_func in solvers.items():
@@ -122,7 +147,7 @@ def run_benchmark():
                 for i in range(NUM_RUNS):
                     start = time.time()
                     
-                    # Gọi hàm giải với giới hạn thời gian
+                    # Gọi hàm giải
                     score = call_solver_safe(solve_func, input_content, t_limit)
                     
                     end = time.time()
@@ -133,8 +158,9 @@ def run_benchmark():
                 # Tính thống kê
                 mean_score = np.mean(scores)
                 std_score = np.std(scores)
+                mean_time = np.mean(times)
                 
-                # Format kết quả: "Mean (Std)"
+                # Format kết quả Score: "Mean (Std)"
                 if std_score == 0:
                     res_str = f"{mean_score:.0f}"
                 else:
@@ -142,17 +168,22 @@ def run_benchmark():
                 
                 row[name] = res_str
                 
-                # In ra màn hình để theo dõi
-                # print(f"      🔹 {name:<25}: Score = {res_str}")
+                # In ra tiến độ
+                print(f"      🔹 {name:<20}: Score = {res_str:<15} | Time avg: {mean_time:.2f}s")
 
             results.append(row)
 
     # --- 4. XUẤT KẾT QUẢ ---
+    if not results:
+        print("\n❌ Không có kết quả nào được ghi nhận.")
+        return
+
     df = pd.DataFrame(results)
     
-    # Sắp xếp cột cho đẹp: Dataset -> Time Limit -> Các thuật toán
-    cols = ["Dataset", "Time Limit"] + [c for c in df.columns if c not in ["Dataset", "Time Limit"]]
-    df = df[cols]
+    # Sắp xếp cột cho đẹp
+    first_cols = ["Dataset", "Mode"]
+    other_cols = [c for c in df.columns if c not in first_cols]
+    df = df[first_cols + other_cols]
     
     print("\n" + "="*90)
     print("🏆 BẢNG TỔNG HỢP KẾT QUẢ (Mean & Std Dev)")
@@ -166,8 +197,9 @@ def run_benchmark():
     print("="*90)
     
     # Lưu ra file CSV
-    df.to_csv("benchmark_final_result.csv", index=False)
-    print(f"✅ Đã lưu kết quả chi tiết vào 'benchmark_final_result.csv'")
+    output_file = "benchmark_final_result.csv"
+    df.to_csv(output_file, index=False)
+    print(f"✅ Đã lưu kết quả chi tiết vào '{output_file}'")
 
 if __name__ == "__main__":
     run_benchmark()
