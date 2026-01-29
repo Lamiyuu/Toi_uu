@@ -1,9 +1,33 @@
-Dataset,Mode,Greedy Constructive,Randomized Greedy,Local Search,Regret-Based,Simulated Annealing,Genetic Algorithm
-test_small.txt,Limit 1 Min,18,18,18,18,18,18
-test_small.txt,No Limit,18,18,18,18,18,18
-test_medium.txt,Limit 1 Min,215,223.3 (0.5),221,223,230.3 (0.5),191.7 (0.5)
-test_medium.txt,No Limit,215,223.3 (0.5),221,223,231.3 (0.5),191.7 (2.9)
-test_large_hard.txt,Limit 1 Min,739,746,741,749,823.3 (2.5),546.7 (9.0)
-test_large_hard.txt,No Limit,739,744.7 (0.5),740,749,762.7 (4.9),544.7 (11.3)
-test_supper_large_hard.txt,Limit 1 Min,2162,1965.7 (5.4),2176,1967,2325.0 (4.5),1438.7 (21.0)
-test_supper_large_hard.txt,No Limit,2162,1958.3 (7.7),2167,1967,2132.0 (13.4),1432.3 (2.6)
+Dataset,Mode,CP,Genetic Algorithm,PSO,Regret-Based,Simulated Annealing,Tabu Search
+01_small_medium.txt,Limit 1 Min,100 (±0.5) | T:60,96 | T:61,97 (±0.5) | T:61,90 | T:61,100 | T:61,91 | T:60
+01_small_medium.txt,Limit 5 Mins,100 | T:60,97 | T:61,98 (±0.5) | T:61,90 | T:61,100 (±0.5) | T:61,91 | T:60
+02_small_hard.txt,Limit 1 Min,222 (±4.3) | T:60,233 (±0.5) | T:61,233 (±0.5) | T:61,197 | T:62,241 (±0.5) | T:61,223 | T:60
+02_small_hard.txt,Limit 5 Mins,235 (±2.1) | T:60,232 | T:61,234 (±0.5) | T:61,197 | T:62,242 (±0.5) | T:61,223 | T:60
+03_medium_medium.txt,Limit 1 Min,337 (±15.8) | T:60,416 (±3.4) | T:61,411 (±2.6) | T:61,379 | T:62,451 (±2.9) | T:61,403 | T:60
+03_medium_medium.txt,Limit 5 Mins,428 (±1.7) | T:60,419 (±0.9) | T:61,409 (±3.7) | T:61,379 | T:62,456 (±0.9) | T:61,403 | T:60
+04_medium_hard.txt,Limit 1 Min,461 (±1.2) | T:60,485 (±2.2) | T:61,481 (±0.8) | T:61,447 | T:62,500 (±0.5) | T:61,474 | T:60
+04_medium_hard.txt,Limit 5 Mins,491 (±2.4) | T:60,485 (±1.2) | T:61,481 (±2.4) | T:61,447 | T:62,501 (±0.5) | T:61,474 | T:60
+05_large_medium.txt,Limit 1 Min,582 (±19.8) | T:59,1138 (±3.3) | T:61,1145 (±3.6) | T:61,1014 | T:62,1219 (±2.9) | T:61,1016 | T:60
+05_large_medium.txt,Limit 5 Mins,1135 (±11.8) | T:60,1136 (±1.4) | T:61,1151 (±3.7) | T:61,1014 | T:62,1240 (±0.9) | T:61,1016 | T:60
+06_large_hard.txt,Limit 1 Min,441 (±16.5) | T:60,871 (±4.5) | T:61,880 (±3.6) | T:61,797 | T:62,995 (±0.8) | T:61,822 | T:60
+06_large_hard.txt,Limit 5 Mins,917 (±7.3) | T:60,876 (±7.4) | T:61,880 (±6.2) | T:61,797 | T:62,999 (±1.2) | T:61,822 | T:60
+test1.txt,Limit 1 Min,169 | T:59,169 | T:59,169 (±0.5) | T:60,164 | T:61,169 | T:61,168 | T:60
+test1.txt,Limit 5 Mins,169 | T:59,169 | T:59,169 (±0.5) | T:60,164 | T:61,169 | T:61,168 | T:60
+test10.txt,Limit 1 Min,12 | T:23,12 | T:23,12 | T:23,12 | T:23,12 | T:23,12 | T:22
+test10.txt,Limit 5 Mins,12 | T:23,12 | T:25,12 | T:23,12 | T:23,12 | T:23,12 | T:22
+test2.txt,Limit 1 Min,167 | T:47,167 | T:45,167 | T:59,167 | T:59,167 | T:61,167 | T:60
+test2.txt,Limit 5 Mins,167 | T:47,167 | T:41,167 | T:59,167 | T:59,167 | T:61,167 | T:60
+test3.txt,Limit 1 Min,37 | T:59,37 | T:43,37 | T:59,37 | T:61,37 | T:61,37 | T:60
+test3.txt,Limit 5 Mins,37 | T:59,37 | T:43,37 | T:59,37 | T:61,37 | T:60,37 | T:60
+test4.txt,Limit 1 Min,227 | T:55,227 | T:45,227 | T:59,227 | T:59,227 | T:61,227 | T:60
+test4.txt,Limit 5 Mins,227 | T:58,227 | T:45,227 | T:59,227 | T:59,227 | T:61,227 | T:60
+test5.txt,Limit 1 Min,318 | T:59,318 | T:47,318 | T:61,318 | T:61,318 | T:61,318 | T:60
+test5.txt,Limit 5 Mins,318 | T:59,318 | T:49,318 | T:61,318 | T:61,318 | T:61,318 | T:60
+test6.txt,Limit 1 Min,69 | T:59,69 | T:41,69 | T:59,69 | T:59,69 | T:61,69 | T:60
+test6.txt,Limit 5 Mins,69 | T:59,69 | T:43,69 | T:59,69 | T:59,69 | T:61,69 | T:59
+test7.txt,Limit 1 Min,200 | T:55,200 | T:49,200 | T:59,200 | T:61,200 | T:61,200 | T:60
+test7.txt,Limit 5 Mins,200 | T:53,200 | T:45,200 | T:59,200 | T:61,200 | T:61,200 | T:60
+test8.txt,Limit 1 Min,147 | T:59,148 | T:61,146 (±0.8) | T:61,138 | T:61,148 (±0.5) | T:61,134 | T:60
+test8.txt,Limit 5 Mins,147 | T:59,148 | T:61,145 (±1.4) | T:61,138 | T:61,148 (±0.5) | T:61,134 | T:60
+test9.txt,Limit 1 Min,284 | T:59,284 | T:59,284 | T:59,283 | T:61,284 | T:61,283 | T:60
+test9.txt,Limit 5 Mins,284 | T:59,284 | T:59,284 | T:60,283 | T:61,284 | T:61,283 | T:60

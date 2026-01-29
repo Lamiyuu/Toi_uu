@@ -237,7 +237,7 @@ def solve(input_content=None, time_limit=None):
 
     data = load_and_preprocess()
     if data is None:
-        return 0
+        return {"count": 0, "makespan": 0}
 
     T, N = data['T'], data['N']
     tasks = data['tasks']
@@ -459,19 +459,31 @@ def solve(input_content=None, time_limit=None):
             cutoff = memory.iteration - 30
             memory.tabu_list = {k: v for k, v in memory.tabu_list.items() if v > cutoff}
 
-    # === OUTPUT ===
+    # === OUTPUT & CALCULATE MAKESPAN ===
     final_output = []
+    finish_times = []
+    
     for tid, (s, t) in best_assigned.items():
         task = next(tk for tk in tasks if tk['id'] == tid)
+        # Format output: (class, subject, start, teacher)
         final_output.append((task['c'] + 1, task['m'], s + 1, t + 1))
+        
+        # Tính thời điểm kết thúc: s (0-based) + duration
+        finish_times.append(s + task['d'])
     
+    makespan = max(finish_times) if finish_times else 0
+
     if input_content is None:
         print(len(final_output))
         final_output.sort(key=lambda x: (x[0], x[1]))
         for item in final_output:
             print(f"{item[0]} {item[1]} {item[2]} {item[3]}")
     
-    return len(final_output)
+    # TRẢ VỀ DICT CHO BENCHMARK
+    return {
+        "count": len(final_output),
+        "makespan": makespan
+    }
 
 if __name__ == "__main__":
     solve()

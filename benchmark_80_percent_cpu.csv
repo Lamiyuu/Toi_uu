@@ -1,0 +1,33 @@
+Dataset,Time Limit,Genetic Algorithm,PSO,Regret-Based,Simulated Annealing,CP,Tabu Search
+01_small_medium.txt,Limit 1 Min,96.7 (0.5),97.3 (0.5),90,100.3 (0.5),100,91
+01_small_medium.txt,Limit 5 Mins,96.7 (0.5),97.7 (0.9),90,100.7 (0.5),100,91
+02_small_hard.txt,Limit 1 Min,231.3 (0.5),233.3 (0.5),204,240.7 (0.5),224.0 (1.4),223
+02_small_hard.txt,Limit 5 Mins,231.3 (1.2),233.0 (0.8),204,241.3 (0.5),236.7 (1.2),223
+03_medium_medium.txt,Limit 1 Min,418.3 (0.9),405.3 (1.2),396,447.0 (1.6),328.3 (19.3),403
+03_medium_medium.txt,Limit 5 Mins,419.3 (0.5),410.0 (1.6),396,454.7 (0.9),427.7 (2.5),403
+04_medium_hard.txt,Limit 1 Min,485.0 (2.2),476.7 (0.5),466,501,465.7 (4.1),474
+04_medium_hard.txt,Limit 5 Mins,486.7 (0.5),483.0 (2.2),466,501.3 (1.2),488.7 (3.3),474
+05_large_medium.txt,Limit 1 Min,1137.7 (2.6),1141.0 (3.7),1056,1212.3 (0.5),504.0 (50.0),1016
+05_large_medium.txt,Limit 5 Mins,1144.3 (3.3),1149.3 (0.5),1056,1237.3 (0.5),1137.7 (5.0),1016
+06_large_hard.txt,Limit 1 Min,870.3 (0.9),864.7 (3.1),809,984.7 (4.2),628.0 (17.5),822
+06_large_hard.txt,Limit 5 Mins,879.3 (0.9),878.3 (6.2),809,999.0 (1.4),898.7 (8.2),822
+test1.txt,Limit 1 Min,169,168.7 (0.5),169,169,169,168
+test1.txt,Limit 5 Mins,169,168.3 (0.5),169,169,169,168
+test10.txt,Limit 1 Min,12,12,12,12,12,12
+test10.txt,Limit 5 Mins,12,12,12,12,12,12
+test2.txt,Limit 1 Min,167,167,167,167,167,167
+test2.txt,Limit 5 Mins,167,167,167,167,167,167
+test3.txt,Limit 1 Min,37,37,37,37,37,37
+test3.txt,Limit 5 Mins,37,37,37,37,37,37
+test4.txt,Limit 1 Min,227,227,227,227,227,227
+test4.txt,Limit 5 Mins,227,227,227,227,227,227
+test5.txt,Limit 1 Min,318,318,318,318,318,317.7 (0.5)
+test5.txt,Limit 5 Mins,318,318,318,318,318,318
+test6.txt,Limit 1 Min,69,69,69,69,69,69
+test6.txt,Limit 5 Mins,69,69,69,69,69,69
+test7.txt,Limit 1 Min,200,200,200,200,200,200
+test7.txt,Limit 5 Mins,200,200,200,200,200,200
+test8.txt,Limit 1 Min,148,146.3 (0.9),147,148,147,134
+test8.txt,Limit 5 Mins,148,145.3 (1.2),147,147.7 (0.5),147,134
+test9.txt,Limit 1 Min,284,284,283,284,284,283
+test9.txt,Limit 5 Mins,284,284,283,284,284,283

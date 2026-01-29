@@ -19,7 +19,7 @@ def solve(input_content=None, time_limit=None):
         sys.stdin = StringIO(input_content)
         
     input_data = sys.stdin.read().split()
-    if not input_data: return 0
+    if not input_data: return {"count": 0, "makespan": 0}
     
     iterator = iter(input_data)
     try:
@@ -45,7 +45,7 @@ def solve(input_content=None, time_limit=None):
         durations = []
         for _ in range(M): durations.append(int(next(iterator)))
     except StopIteration:
-        return 0
+        return {"count": 0, "makespan": 0}
 
     # --- MÔ HÌNH HÓA (MODELING) ---
     model = cp_model.CpModel()
@@ -70,38 +70,31 @@ def solve(input_content=None, time_limit=None):
             start = model.NewIntVar(1, SLOTS - d + 1, f'start_c{c_idx}_m{m_id}')
             end = model.NewIntVar(1, SLOTS, f'end_c{c_idx}_m{m_id}')
             
-            # 3. Interval (Khoảng thời gian) - OPTIONAL (chỉ tồn tại nếu is_present = true)
+            # 3. Interval (Khoảng thời gian) - OPTIONAL
             interval = model.NewOptionalIntervalVar(start, d, end, is_present, f'interval_c{c_idx}_m{m_id}')
             class_intervals[c_idx].append(interval)
 
             # 4. Ràng buộc Session (Không vắt qua buổi)
-            # start chỉ được nhận các giá trị hợp lệ
             valid_starts = []
             for s in range(1, SLOTS - d + 2):
-                # Logic check session
                 start_sess = (s - 1) // SLOTS_PER_SESSION
                 end_sess = (s + d - 2) // SLOTS_PER_SESSION
                 if start_sess == end_sess:
                     valid_starts.append(s)
             
-            # Domain start chỉ nằm trong các slot hợp lệ
             model.AddAllowedAssignments([start], [[s] for s in valid_starts])
 
             # 5. Phân công giáo viên
-            # Tạo biến bool cho từng giáo viên: t_active[t] = 1 nếu giáo viên t dạy môn này
             active_teachers = []
             for t in eligible:
                 t_active = model.NewBoolVar(f'teach_c{c_idx}_m{m_id}_t{t}')
                 active_teachers.append(t_active)
                 
-                # Link: t_active chỉ được = 1 nếu is_present = 1
                 model.AddImplication(t_active, is_present)
                 
-                # Interval ảo cho giáo viên (cũng là optional)
                 t_interval = model.NewOptionalIntervalVar(start, d, end, t_active, f't_int_c{c_idx}_m{m_id}_t{t}')
                 teacher_intervals[t].append(t_interval)
             
-            # Tổng số giáo viên dạy môn này phải bằng is_present (0 hoặc 1)
             model.Add(sum(active_teachers) == is_present)
 
             assignments[(c_idx, m_id)] = {
@@ -116,29 +109,35 @@ def solve(input_content=None, time_limit=None):
         model.AddNoOverlap(t_list)
 
     # --- HÀM MỤC TIÊU (Objective) ---
-    # Tối đa hóa số môn được xếp (Tổng các biến is_present)
     total_scheduled = sum(info['is_present'] for info in assignments.values())
     model.Maximize(total_scheduled)
 
     # --- GIẢI ---
     solver = cp_model.CpSolver()
     
-    # Thiết lập giới hạn thời gian từ tham số truyền vào
+    # Thiết lập giới hạn thời gian
     limit = time_limit if time_limit is not None else DEFAULT_TIME_LIMIT
     solver.parameters.max_time_in_seconds = limit
     
-    # Có thể thêm parameters để tối ưu log nếu muốn
-    # solver.parameters.log_search_progress = True 
-    
     status = solver.Solve(model)
 
-    # --- OUTPUT ---
+    # --- TÍNH TOÁN KẾT QUẢ ---
     final_count = 0
+    makespan = 0
+    
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         results = []
+        finish_times = []
+        
         for (c_idx, m_id), info in assignments.items():
             if solver.Value(info['is_present']):
                 start_val = solver.Value(info['start'])
+                
+                # Tính thời điểm kết thúc để tìm Makespan
+                # durations là list (0-based index), m_id là 1-based index
+                d = durations[m_id - 1]
+                finish_times.append(start_val + d)
+
                 # Tìm giáo viên được chọn
                 chosen_t = -1
                 for t_idx, t_var in info['active_teachers']:
@@ -148,9 +147,10 @@ def solve(input_content=None, time_limit=None):
                 results.append((c_idx + 1, m_id, start_val, chosen_t + 1))
         
         final_count = len(results)
+        if finish_times:
+            makespan = max(finish_times)
         
-        # Chỉ in ra stdout nếu không có input_content (chạy đơn lẻ)
-        # hoặc benchmark runner capture stdout thì vẫn cần in.
+        # Chỉ in ra stdout nếu chạy đơn lẻ
         if input_content is None:
             print(final_count)
             results.sort(key=lambda x: (x[0], x[1]))
@@ -160,7 +160,11 @@ def solve(input_content=None, time_limit=None):
         if input_content is None:
             print(0)
 
-    return final_count
+    # TRẢ VỀ DICT CHO BENCHMARK
+    return {
+        "count": final_count,
+        "makespan": makespan
+    }
 
 if __name__ == "__main__":
     solve()

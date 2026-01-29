@@ -18,17 +18,16 @@ def solve(input_content=None, time_limit=None):
     start_time_prog = time.time()
     
     # XÁC ĐỊNH GIỚI HẠN THỜI GIAN
-    # Nếu benchmark truyền time_limit thì dùng, không thì dùng mặc định
     limit = time_limit if time_limit is not None else DEFAULT_TIME_LIMIT
 
     # 1. GỌI TIỀN XỬ LÝ
-    # Giả lập stdin nếu có input string (dùng cho benchmark runner)
     if input_content:
         from io import StringIO
         sys.stdin = StringIO(input_content)
 
     data = load_and_preprocess()
-    if data is None: return 0
+    # Trả về dict rỗng nếu lỗi để benchmark không bị crash
+    if data is None: return {"count": 0, "makespan": 0}
 
     # Bung dữ liệu ra các biến
     T, N, tasks = data['T'], data['N'], data['tasks']
@@ -239,23 +238,37 @@ def solve(input_content=None, time_limit=None):
 
         # Giảm nhiệt độ
         T_curr *= ALPHA
-        # Tái gia nhiệt (Reheating): Nếu nguội quá mà còn thời gian thì reset nhiệt độ
+        # Tái gia nhiệt (Reheating)
         if T_curr < 1.0: T_curr = T_START 
 
     # --- OUTPUT ---
     final_output = []
+    finish_times = []
+    makespan = 0
+
     for tid, (s, t) in best_assigned.items():
         task = next(tk for tk in tasks if tk['id'] == tid)
         # Cộng 1 cho đúng format đề bài (Index từ 1)
         final_output.append((task['c'] + 1, task['m'], s, t + 1))
+        
+        # Tính thời điểm kết thúc cho Makespan
+        finish_times.append(s + task['d'])
     
+    if finish_times:
+        makespan = max(finish_times)
+    
+    # In kết quả nếu chạy lẻ (Debug)
     if input_content is None:
         print(len(final_output))
         final_output.sort(key=lambda x: (x[0], x[1]))
         for item in final_output:
             print(f"{item[0]} {item[1]} {item[2]} {item[3]}")
     
-    return len(final_output)
+    # TRẢ VỀ DICT CHO BENCHMARK
+    return {
+        "count": len(final_output),
+        "makespan": makespan
+    }
 
 if __name__ == "__main__":
     solve()

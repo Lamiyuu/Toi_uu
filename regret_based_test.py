@@ -1,5 +1,5 @@
 import sys
-import time # (1) Import time để tránh lỗi nếu có dùng time_limit (dù code này chạy 1 lần)
+import time
 
 # --- HÀM HỖ TRỢ ĐỌC DỮ LIỆU ---
 def get_iterator(input_content=None):
@@ -14,8 +14,13 @@ def get_iterator(input_content=None):
         
     return iter(data)
 
-# (2) Thêm tham số time_limit vào hàm solve cho đồng bộ
 def solve(input_content=None, time_limit=0.95):
+    """
+    Hàm giải thuật toán Regret-Based Heuristic.
+    Trả về dict: {'count': int, 'makespan': int}
+    """
+    start_time = time.time()
+    
     # --- 1. ĐỌC DỮ LIỆU ---
     iterator = get_iterator(input_content)
     
@@ -24,7 +29,7 @@ def solve(input_content=None, time_limit=0.95):
         N = int(next(iterator))
         M = int(next(iterator))
     except StopIteration:
-        return 0
+        return {"count": 0, "makespan": 0}
 
     class_needs = []
     for _ in range(N):
@@ -58,7 +63,7 @@ def solve(input_content=None, time_limit=0.95):
     # valid_masks: Lưu các vị trí bắt đầu và mặt nạ bit không nhảy buổi
     valid_masks = [[] for _ in range(13)]
     for d in range(1, 13):
-        for start in range(1, 61 - d + 2):
+        for start in range(1, 60 - d + 2):
             end = start + d - 1
             if (start - 1) // 6 == (end - 1) // 6: # Ràng buộc cùng buổi
                 mask = ((1 << d) - 1) << (start - 1)
@@ -68,7 +73,6 @@ def solve(input_content=None, time_limit=0.95):
     unassigned_tasks = []
     for c_idx, needs in enumerate(class_needs, 1):
         for m_id in needs:
-            # Check range để tránh lỗi input sai
             if m_id < len(durations):
                 unassigned_tasks.append({
                     'c': c_idx, 
@@ -83,10 +87,14 @@ def solve(input_content=None, time_limit=0.95):
 
     # --- 3. VÒNG LẶP REGRET-BASED GREEDY ---
     while unassigned_tasks:
+        # Kiểm tra thời gian
+        if time.time() - start_time > time_limit:
+            break
+
         best_task_idx = -1
         best_option = None # (start, teacher_id, mask)
         min_options_count = float('inf')
-        max_regret_score = -1 # Tiêu chí phụ: Độ ưu tiên nếu options bằng nhau
+        max_regret_score = -1 
 
         # Duyệt tất cả các task còn lại để tìm task "nguy kịch" nhất
         i = 0
@@ -99,7 +107,19 @@ def solve(input_content=None, time_limit=0.95):
             current_options = []
             c_mask = class_masks[c_idx]
             
+            # Tối ưu: Nếu task đã hết đường xếp, loại bỏ ngay
+            possible_teachers = []
             for t_id in task['eligible']:
+                # Pre-check nhanh: Nếu teacher kín lịch đúng vào chỗ lớp rảnh thì bỏ qua (Heuristic nhẹ)
+                if (teacher_masks[t_id] & c_mask) == c_mask: # (Logic này chỉ mang tính ước lượng)
+                    continue
+                possible_teachers.append(t_id)
+            
+            if not possible_teachers:
+                # Nếu không còn giáo viên nào rảnh (về lý thuyết), thử check kỹ lại
+                possible_teachers = task['eligible']
+
+            for t_id in possible_teachers:
                 t_mask = teacher_masks[t_id]
                 combined = c_mask | t_mask
                 
@@ -107,16 +127,18 @@ def solve(input_content=None, time_limit=0.95):
                 for start, msk in valid_masks[d]:
                     if not (combined & msk):
                         current_options.append((start, t_id, msk))
+                        # Heuristic: Chỉ cần tìm vài lựa chọn đầu là đủ để ước lượng độ khó
+                        if len(current_options) > 5: break 
+                if len(current_options) > 5: break
             
             num_opts = len(current_options)
             
-            # Nếu môn này không còn cách nào để xếp, loại bỏ khỏi danh sách (Chấp nhận thất bại task này)
+            # Nếu môn này không còn cách nào để xếp, loại bỏ
             if num_opts == 0:
                 unassigned_tasks.pop(i)
                 continue
             
             # Tính điểm ưu tiên bổ sung (Tie-breaker)
-            # Ưu tiên môn dài hơn hoặc môn có tổng số giáo viên ít hơn
             regret_score = d * 100 - len(task['eligible'])
             
             # Chiến lược Regret: Chọn môn có ít lựa chọn nhất (Min-Remaining-Values)
@@ -124,7 +146,6 @@ def solve(input_content=None, time_limit=0.95):
                 min_options_count = num_opts
                 max_regret_score = regret_score
                 best_task_idx = i
-                # Heuristic chọn slot: Chọn slot sớm nhất (First Fit) trong các options
                 best_option = current_options[0] 
             elif num_opts == min_options_count:
                 if regret_score > max_regret_score:
@@ -146,16 +167,30 @@ def solve(input_content=None, time_limit=0.95):
         else:
             break
 
-    # --- 4. XUẤT KẾT QUẢ ---
-    # Chỉ in ra màn hình nếu đang ở chế độ Nộp bài (input_content is None)
+    # --- 4. TÍNH TOÁN KẾT QUẢ ---
+    finish_times = []
+    for res in final_solution:
+        # res: (class, subject, start, teacher)
+        m_id = res[1]
+        start = res[2]
+        d = durations[m_id]
+        finish_times.append(start + d)
+    
+    makespan = max(finish_times) if finish_times else 0
+    final_count = len(final_solution)
+
+    # In ra màn hình nếu chạy lẻ
     if input_content is None:
-        print(len(final_solution))
+        print(final_count)
         final_solution.sort(key=lambda x: (x[0], x[1]))
         for res in final_solution:
             print(f"{res[0]} {res[1]} {res[2]} {res[3]}")
 
-    # QUAN TRỌNG: Trả về kết quả để Benchmark Runner ghi nhận
-    return len(final_solution)
+    # Trả về kết quả chuẩn cho Benchmark
+    return {
+        "count": final_count,
+        "makespan": makespan
+    }
 
 if __name__ == "__main__":
     solve()
